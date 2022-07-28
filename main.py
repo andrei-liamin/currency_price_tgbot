@@ -11,30 +11,33 @@
 # Токен telegramm-бота хранить в специальном конфиге (можно использовать .py файл).
 # Все классы спрятать в файле extensions.py.
 
-from tokenize import Number
-import requests
-import json
-
 import telebot
 
-TOKEN = "5523246168:AAGEEOiCu4CV-itd7i8mEyVWm0CZjGQ9geY"
+from extensions import Exchange
+from config import TOKEN
 
 bot = telebot.TeleBot(TOKEN)
 
 # get currency exchange values
 
-class Exchange():
-    def __init__(self):
-        self.path = 'https://www.cbr-xml-daily.ru/daily_json.js'
+exchange = Exchange()
 
-    def getPrice(self, base, quote, amount):
-        data_json = requests.get(self.path).content
-        data_dict = json.loads(data_json)["Valute"]
-        data_dict["RUB"] = {"Value": 1}
-        base_value = float(data_dict[base]["Value"])
-        quote_value = float(data_dict[quote]["Value"])
+# start
+@bot.message_handler(commands=['start', 'help'])
+def handle_start_help(message):
+    bot.send_message(message.chat.id, "Hi!")
 
-        return round((base_value / quote_value * amount), 4)
+# values
+@bot.message_handler(commands=['values'])
+def handle_start_help(message):
+    bot.send_message(message.chat.id, exchange.getValues())
 
-test = Exchange()
-print(test.getPrice("USD", "EUR", 3))
+# default handler
+@bot.message_handler()
+def handle_get_price(message):
+    base, quote, amount = message.text.split()
+    amount = int(amount)
+    result = exchange.getPrice(base, quote, amount)
+    bot.send_message(message.chat.id, result)
+
+bot.polling(none_stop=True)
