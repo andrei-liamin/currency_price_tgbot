@@ -1,43 +1,47 @@
-# Бот возвращает цену на определённое количество валюты (евро, доллар или рубль).
-# При написании бота необходимо использовать библиотеку pytelegrambotapi.
-# Человек должен отправить сообщение боту в виде <имя валюты цену которой он хочет узнать> <имя валюты в которой надо узнать цену первой валюты> <количество первой валюты>.
-# При вводе команды /start или /help пользователю выводятся инструкции по применению бота.
-# При вводе команды /values должна выводиться информация о всех доступных валютах в читаемом виде.
-# Для взятия курса валют необходимо использовать любое удобное API и отправлять к нему запросы с помощью библиотеки Requests.
-# Для парсинга полученных ответов использовать библиотеку JSON.
-# При ошибке пользователя (например, введена неправильная или несуществующая валюта или неправильно введено число) вызывать собственно написанное исключение APIException с текстом пояснения ошибки.
-# Текст любой ошибки с указанием типа ошибки должен отправляться пользователю в сообщения.
-# Для отправки запросов к API описать класс со статическим методом get_price(), который принимает три аргумента: имя валюты, цену на которую надо узнать, — base, имя валюты, цену в которой надо узнать, — quote, количество переводимой валюты — amount и возвращает нужную сумму в валюте.
-# Токен telegramm-бота хранить в специальном конфиге (можно использовать .py файл).
-# Все классы спрятать в файле extensions.py.
-
 import telebot
 
-from extensions import Exchange
+from extensions import APIException, Exchange
 from config import TOKEN
 
 bot = telebot.TeleBot(TOKEN)
 
-# get currency exchange values
-
-exchange = Exchange()
-
 # start
 @bot.message_handler(commands=['start', 'help'])
 def handle_start_help(message):
-    bot.send_message(message.chat.id, "Hi!")
+    greetings = """Чтобы получить стоимость нужной валюты отправь мне сообщение в таком формате (через пробел):
+A B N
+где A - валюта, стоимость которой хочешь узнать
+B - валюта, в которой нужно узнать стоимость
+N - количество первой валюты A
+
+Например, чтобы узнать сколько стоит 1 доллар в рублях отправь:
+USD RUB 1
+    
+Чтобы узнать доступные для конвертации валюты жми /values"""
+
+    bot.send_message(message.chat.id, greetings)
 
 # values
 @bot.message_handler(commands=['values'])
-def handle_start_help(message):
-    bot.send_message(message.chat.id, exchange.getValues())
+def handle_values(message):
+    bot.send_message(message.chat.id, Exchange.get_values())
 
 # default handler
-@bot.message_handler()
+@bot.message_handler(content_types=["text"])
 def handle_get_price(message):
-    base, quote, amount = message.text.split()
-    amount = int(amount)
-    result = exchange.getPrice(base, quote, amount)
-    bot.send_message(message.chat.id, result)
+    values = message.text.split()
+    try:
+        # error: too many counts
+        if len(values) != 3:
+            raise APIException("Неверное количество параметров")
+        base, quote, amount = values
+        result = Exchange.get_price(base, quote, amount)
+    except APIException as e:
+        bot.send_message(message.chat.id, f"Неправильно введены данные:\n{e}")
+        handle_start_help(message)
+    except Exception as e:
+        bot.send_message(message.chat.id, f"Неизвестная ошибка:\n{e}\n\nПопробуйте еще раз чуть позже")
+    else:
+        bot.send_message(message.chat.id, result)
 
 bot.polling(none_stop=True)
